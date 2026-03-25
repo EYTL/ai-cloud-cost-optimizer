@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+test_aws.py
+.streamlit/
+%USERPROFILE%/.aws/credentials
+%USERPROFILE%/.aws/config
+Figure_1.png
+Figure_2.png
+test.py
+AI OPT.py
+Cloud cost.py

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def load_nasa_data():
-    df = pd.read_csv('Nasa Dataset for LSTM.csv')
+    df = pd.read_csv('NASA Dataset for LSTM.csv')
     df = df.rename(columns={'minute': 'date'})
     df['cost'] = df['count'] * 0.000001
     

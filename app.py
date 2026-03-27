@@ -1,3 +1,4 @@
+from lstm_forecast import forecast_lstm
 import streamlit as st
 import pandas as pd
 import plotly.express as px 
@@ -82,6 +83,13 @@ if 'count' in df.columns:
 else:
     st.info("Waste detection requires traffic count data")
 
+st.subheader("LSTM Neural Network Forecast")
+
+with st.spinner("Training LSTM model on NASA data... (this takes 1-2 minutes)"):
+    lstm_prediction = forecast_lstm(df, n_steps=60, epochs=5)
+
+st.metric("LSTM Predicted Next Cost", f"${lstm_prediction:.6f}")
+st.caption("Prediction made by a trained LSTM neural network on historical traffic patterns")
     
 #-----------------------------------------------------------------------------#
 

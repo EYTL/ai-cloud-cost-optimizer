@@ -11,6 +11,23 @@ from data_loader import load_data
 # ─────────────────────────────────────────
 st.set_page_config(page_title="AI Cloud Cost Optimizer", layout="wide")
 
+st.markdown("""
+<style>
+    /* Spacing between headers */
+    h1 { margin-bottom: 2rem !important; }
+    h2, h3 { margin-top: 3.5rem !important; margin-bottom: 1.5rem !important; }
+    
+    /* Spacing around the horizontal dividers */
+    hr { margin-top: 4rem !important; margin-bottom: 4rem !important; }
+    
+    /* Give metrics some breathing room */
+    div[data-testid="stMetric"] {
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ─────────────────────────────────────────
 # SIDEBAR — DATA SOURCE SELECTION
 # ─────────────────────────────────────────
@@ -18,13 +35,11 @@ st.sidebar.title("Dashboard Controls")
 
 source = st.sidebar.radio(
     "Data Source",
-    ['nasa', 'upload', 'aws', 'gcp', 'azure'],
+    ['nasa', 'upload', 'aws'],
     format_func=lambda x: {
-        'nasa': '🛰️ NASA Dataset',
-        'upload': '📂 Upload CSV File',
-        'aws': '☁️ AWS Cost Explorer',
-        'gcp': '🌐 Google Cloud',
-        'azure': '🔷 Microsoft Azure'
+        'nasa': 'NASA Dataset',
+        'upload': 'Upload CSV File',
+        'aws': 'AWS Cost Explorer'
     }[x]
 )
 
@@ -34,11 +49,9 @@ source = st.sidebar.radio(
 uploaded_file = None
 aws_key = aws_secret = aws_region = None
 aws_days = 90
-gcp_project = gcp_dataset = gcp_table = gcp_sa = None
-azure_sub = azure_tenant = azure_client = azure_secret = None
 
 if source == 'upload':
-    st.sidebar.markdown("### 📂 Upload Your Data")
+    st.sidebar.markdown("### Upload Your Data")
     uploaded_file = st.sidebar.file_uploader(
         "Upload CSV file",
         type=['csv'],
@@ -50,7 +63,7 @@ if source == 'upload':
     )
 
 elif source == 'aws':
-    st.sidebar.markdown("### ☁️ AWS Credentials")
+    st.sidebar.markdown("### AWS Credentials")
     with st.sidebar.expander("Enter AWS Credentials", expanded=True):
         aws_key = st.text_input("Access Key ID", type="password",
                                 help="Leave blank to use IAM role / env vars")
@@ -60,25 +73,9 @@ elif source == 'aws':
             'ap-southeast-1', 'ap-northeast-1', 'ca-central-1'
         ])
         aws_days = st.slider("Days of history", min_value=7, max_value=365, value=90)
-    st.sidebar.caption("💡 Cost Explorer must be enabled in your AWS account.")
+    st.sidebar.caption("Cost Explorer must be enabled in your AWS account.")
 
-elif source == 'gcp':
-    st.sidebar.markdown("### 🌐 GCP Credentials")
-    with st.sidebar.expander("Enter GCP Details", expanded=True):
-        gcp_project = st.text_input("Project ID")
-        gcp_dataset = st.text_input("BigQuery Dataset")
-        gcp_table = st.text_input("Billing Table")
-        gcp_sa = st.text_input("Service Account JSON path (optional)")
-    st.sidebar.caption("💡 Enable GCP Billing Export to BigQuery first.")
 
-elif source == 'azure':
-    st.sidebar.markdown("### 🔷 Azure Credentials")
-    with st.sidebar.expander("Enter Azure Details", expanded=True):
-        azure_sub = st.text_input("Subscription ID")
-        azure_tenant = st.text_input("Tenant ID")
-        azure_client = st.text_input("Client ID")
-        azure_secret = st.text_input("Client Secret", type="password")
-    st.sidebar.caption("💡 Requires Cost Management Reader role.")
 
 # ─────────────────────────────────────────
 # LOAD DATA
@@ -88,7 +85,7 @@ load_error = None
 
 try:
     if source == 'upload' and uploaded_file is None:
-        st.info("📂 Please upload a CSV file using the sidebar to get started.")
+        st.info("Please upload a CSV file using the sidebar to get started.")
         st.stop()
 
     df = load_data(
@@ -97,21 +94,13 @@ try:
         aws_access_key=aws_key or None,
         aws_secret_key=aws_secret or None,
         aws_region=aws_region or 'us-east-1',
-        aws_days=aws_days,
-        gcp_project=gcp_project,
-        gcp_dataset=gcp_dataset,
-        gcp_table=gcp_table,
-        gcp_sa_json=gcp_sa or None,
-        azure_sub=azure_sub,
-        azure_tenant=azure_tenant,
-        azure_client=azure_client,
-        azure_secret=azure_secret or None
+        aws_days=aws_days
     )
 except Exception as e:
     load_error = str(e)
 
 if load_error:
-    st.error(f"❌ Data load failed: {load_error}")
+    st.error(f"Data load failed: {load_error}")
     st.stop()
 
 df = detect_anomalies(df)
@@ -133,22 +122,20 @@ if selected_dept != "ALL":
 # ─────────────────────────────────────────
 # MAIN TITLE
 # ─────────────────────────────────────────
-st.title("🤖 AI Cloud Cost Optimizer")
+st.title("AI Cloud Cost Optimizer")
 st.write("Analyzing cloud costs, detecting anomalies, and predicting future spend in real time.")
 
 source_labels = {
     'nasa': 'NASA Traffic Dataset',
     'upload': f'Uploaded File: {uploaded_file.name if uploaded_file else ""}',
-    'aws': f'AWS Cost Explorer ({aws_days} days)',
-    'gcp': 'Google Cloud Billing',
-    'azure': 'Microsoft Azure Cost Management'
+    'aws': f'AWS Cost Explorer ({aws_days} days)'
 }
-st.caption(f"📡 Data source: **{source_labels[source]}** | {len(df):,} records loaded")
+st.caption(f"Data source: **{source_labels[source]}** | {len(df):,} records loaded")
 
 # ─────────────────────────────────────────
 # SECTION 1: AUTOSCALING + LOAD BALANCING
 # ─────────────────────────────────────────
-st.subheader("⚡ Autoscaling & Load Balancing")
+st.subheader("Autoscaling & Load Balancing")
 
 def get_scaling_metrics(df):
     """Compute scaling signals from cost and traffic data."""
@@ -214,52 +201,60 @@ metrics = get_scaling_metrics(df)
 recommendation = scaling_recommendation(metrics)
 lb_distribution = load_balancer_status(df)
 
-# Display scaling recommendation
-col_scale1, col_scale2, col_scale3 = st.columns([1, 1, 2])
+# Display Metrics and Recommendation side-by-side
+m1, m2, m3, m4 = st.columns([1, 1, 1, 2])
 
-with col_scale1:
-    if recommendation == 'Scale Up':
-        st.error(f"🔴 **{recommendation}**\nHigh load detected — provision more resources")
-    elif recommendation == 'Scale Down':
-        st.warning(f"🟡 **{recommendation}**\nLow utilization — reduce idle resources")
-    else:
-        st.success(f"🟢 **{recommendation}**\nLoad is balanced — no action needed")
+with m1:
+    st.metric("Avg Cost (7 Days)", f"${metrics['avg_cost']:.4f}")
 
-with col_scale2:
-    st.metric("Avg Cost (Last 7 Periods)", f"${metrics['avg_cost']:.4f}")
-    trend_symbol = "📈" if metrics['cost_trend'] > 0 else "📉"
+with m2:
+    trend_symbol = "↑" if metrics['cost_trend'] > 0 else "↓"
     st.metric("Cost Trend", f"{trend_symbol} {metrics['cost_trend']:+.4f}")
-    if metrics['has_traffic']:
-        st.metric("Avg Traffic", f"{metrics['avg_traffic']:.0f} req/min")
 
-with col_scale3:
-    if lb_distribution:
-        st.markdown("**Load Balancer Distribution**")
-        fig_lb = go.Figure(go.Bar(
-            x=list(lb_distribution.values()),
-            y=list(lb_distribution.keys()),
-            orientation='h',
-            marker_color=[
-                '#ef4444' if v > 50 else '#f59e0b' if v > 25 else '#22c55e'
-                for v in lb_distribution.values()
-            ]
-        ))
-        fig_lb.update_layout(
-            height=200,
-            margin=dict(l=0, r=0, t=0, b=0),
-            xaxis_title="% of Total Cost",
-            showlegend=False
-        )
-        st.plotly_chart(fig_lb, use_container_width=True)
+with m3:
+    if metrics['has_traffic']:
+        st.metric("Avg Traffic", f"{metrics['avg_traffic']:.0f} req/m")
+    else:
+        st.metric("Avg Traffic", "N/A")
+
+with m4:
+    if recommendation == 'Scale Up':
+        st.error(f"**{recommendation}**\nHigh load detected — provision more resources")
+    elif recommendation == 'Scale Down':
+        st.warning(f"**{recommendation}**\nLow utilization — reduce idle resources")
+    else:
+        st.success(f"**{recommendation}**\nLoad is balanced — no action needed")
+
+st.write("")
+
+# Display Load Balancer full width
+if lb_distribution:
+    st.markdown("**Load Balancer Distribution**")
+    fig_lb = go.Figure(go.Bar(
+        x=list(lb_distribution.values()),
+        y=list(lb_distribution.keys()),
+        orientation='h',
+        marker_color=[
+            '#ef4444' if v > 50 else '#f59e0b' if v > 25 else '#22c55e'
+            for v in lb_distribution.values()
+        ]
+    ))
+    fig_lb.update_layout(
+        height=250,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="% of Total Cost",
+        showlegend=False
+    )
+    st.plotly_chart(fig_lb, use_container_width=True)
 
 # Autoscaling action log
-with st.expander("📋 Autoscaling Decision Log"):
+with st.expander("Autoscaling Decision Log"):
     st.markdown(f"""
     | Signal | Value | Status |
     |--------|-------|--------|
-    | Avg Cost (7-day) | ${metrics['avg_cost']:.4f} | {'⚠️ High' if metrics['avg_cost'] > 100 else '✅ Normal'} |
-    | Cost Trend | {metrics['cost_trend']:+.4f} | {'📈 Rising' if metrics['cost_trend'] > 0 else '📉 Falling'} |
-    | Traffic Load | {'N/A' if not metrics['has_traffic'] else f"{metrics['avg_traffic']:.0f}"} | {'N/A' if not metrics['has_traffic'] else ('⚠️ High' if metrics['avg_traffic'] > 100 else '✅ Normal')} |
+    | Avg Cost (7-day) | ${metrics['avg_cost']:.4f} | {'High' if metrics['avg_cost'] > 100 else 'Normal'} |
+    | Cost Trend | {metrics['cost_trend']:+.4f} | {'Rising' if metrics['cost_trend'] > 0 else 'Falling'} |
+    | Traffic Load | {'N/A' if not metrics['has_traffic'] else f"{metrics['avg_traffic']:.0f}"} | {'N/A' if not metrics['has_traffic'] else ('High' if metrics['avg_traffic'] > 100 else 'Normal')} |
     | **Final Decision** | **{recommendation}** | {'🔴' if recommendation == 'Scale Up' else '🟡' if recommendation == 'Scale Down' else '🟢'} |
     """)
 
@@ -268,7 +263,7 @@ st.divider()
 # ─────────────────────────────────────────
 # SECTION 2: COST FORECAST (Moving Average)
 # ─────────────────────────────────────────
-st.subheader("📈 Cost Forecast")
+st.subheader("Cost Forecast")
 
 window = min(7, len(df) // 2) if len(df) < 14 else 7
 df['forecast'] = df['cost'].rolling(window=window).mean()
@@ -287,15 +282,19 @@ st.divider()
 # ─────────────────────────────────────────
 # SECTION 3: LSTM FORECAST
 # ─────────────────────────────────────────
-st.subheader("🧠 LSTM Neural Network Forecast")
+st.subheader("LSTM Neural Network Forecast")
+
+@st.cache_data(show_spinner=False)
+def get_cached_lstm_forecast(data, n_steps, epochs):
+    return forecast_lstm(data, n_steps=n_steps, epochs=epochs)
 
 data_size = len(df)
 if data_size < 5:
-    st.warning("⚠️ Not enough data for LSTM (minimum 5 records). Add more data or use NASA dataset.")
+    st.warning("Not enough data for LSTM (minimum 5 records). Add more data or use NASA dataset.")
 else:
     with st.spinner(f"Training LSTM on {data_size} records... (may take 1-2 mins for large datasets)"):
         try:
-            lstm_prediction = forecast_lstm(df, n_steps=60, epochs=5)
+            lstm_prediction = get_cached_lstm_forecast(df, n_steps=60, epochs=5)
             st.metric("LSTM Predicted Next Cost", f"${lstm_prediction:.6f}")
             st.caption(
                 f"Trained on {data_size} records. "
@@ -309,7 +308,7 @@ st.divider()
 # ─────────────────────────────────────────
 # SECTION 4: WASTE DETECTOR
 # ─────────────────────────────────────────
-st.subheader("🗑️ Waste Detector")
+st.subheader("Waste Detector")
 
 def detect_waste(df):
     if 'count' not in df.columns:
@@ -324,17 +323,17 @@ def detect_waste(df):
 waste = detect_waste(df)
 st.write(f"Wasteful periods detected: **{len(waste)}**")
 if len(waste) > 0:
-    st.warning(f"⚠️ {len(waste)} periods show unusually low utilization / spend")
+    st.warning(f"{len(waste)} periods show unusually low utilization / spend")
     st.dataframe(waste.head(20))
 else:
-    st.success("✅ No waste detected")
+    st.success("No waste detected")
 
 st.divider()
 
 # ─────────────────────────────────────────
 # SECTION 5: ANOMALY DETECTION
 # ─────────────────────────────────────────
-st.subheader("🔍 Cost Trend with Anomalies")
+st.subheader("Cost Trend with Anomalies")
 
 fig = px.line(
     df.tail(1000), x='date', y='cost',
@@ -357,13 +356,13 @@ st.write(f"Total records analyzed: **{len(df)}**")
 st.write(f"Anomalies Detected: **{len(anomalies)}** ({round(len(anomalies) / len(df) * 100, 1)}%)")
 
 if len(anomalies) > 0:
-    st.error(f"⚠️ {len(anomalies)} anomalies detected by Isolation Forest!")
+    st.error(f"{len(anomalies)} anomalies detected by Isolation Forest!")
     st.dataframe(anomalies.head(20))
 else:
-    st.success("✅ No anomalies detected")
+    st.success("No anomalies detected")
 
 st.download_button(
-    label="⬇️ Download Anomaly Report",
+    label="Download Anomaly Report",
     data=anomalies.to_csv(index=False),
     file_name="anomaly_report.csv",
     mime="text/csv"
@@ -374,7 +373,7 @@ st.divider()
 # ─────────────────────────────────────────
 # SECTION 6: EXECUTIVE SUMMARY
 # ─────────────────────────────────────────
-st.subheader("📊 Executive Summary")
+st.subheader("Executive Summary")
 
 col1, col2, col3, col4 = st.columns(4)
 anomaly_count = len(anomalies)
@@ -396,7 +395,7 @@ st.divider()
 # ─────────────────────────────────────────
 # SECTION 7: COST BY DEPARTMENT
 # ─────────────────────────────────────────
-st.subheader("🏢 Cost by Department / Service")
+st.subheader("Cost by Department / Service")
 
 fig2 = px.bar(
     df.groupby('department')['cost'].sum().reset_index(),
@@ -410,5 +409,5 @@ st.divider()
 # ─────────────────────────────────────────
 # SECTION 8: RAW DATA
 # ─────────────────────────────────────────
-st.subheader("📋 Raw Data")
+st.subheader("Raw Data")
 st.dataframe(df)

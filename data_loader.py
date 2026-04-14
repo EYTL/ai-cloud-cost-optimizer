@@ -155,102 +155,12 @@ def fetch_aws_data(days=90, granularity='DAILY',
     return df
 
 
-# ─────────────────────────────────────────
-# GCP BILLING (stub — requires BigQuery export)
-# ─────────────────────────────────────────
-def fetch_gcp_data(project_id=None, dataset=None, table=None,
-                   service_account_json=None):
-    """
-    GCP Billing via BigQuery export.
-    Requires: google-cloud-bigquery installed + billing export enabled.
-    """
-    try:
-        from google.cloud import bigquery
-        if service_account_json:
-            client = bigquery.Client.from_service_account_json(service_account_json)
-        else:
-            client = bigquery.Client(project=project_id)
-
-        query = f"""
-            SELECT
-                DATE(usage_start_time) as date,
-                service.description as department,
-                SUM(cost) as cost
-            FROM `{project_id}.{dataset}.{table}`
-            WHERE DATE(usage_start_time) >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-            GROUP BY date, department
-            ORDER BY date
-        """
-        df = client.query(query).to_dataframe()
-        df['date'] = pd.to_datetime(df['date'])
-        return df
-    except ImportError:
-        raise ValueError("google-cloud-bigquery not installed. Run: pip install google-cloud-bigquery")
-    except Exception as e:
-        raise ValueError(f"GCP connection failed: {e}")
-
-
-# ─────────────────────────────────────────
-# AZURE COST MANAGEMENT (stub)
-# ─────────────────────────────────────────
-def fetch_azure_data(subscription_id=None, tenant_id=None,
-                     client_id=None, client_secret=None):
-    """
-    Azure Cost Management via REST API.
-    Requires: azure-mgmt-costmanagement installed.
-    """
-    try:
-        from azure.identity import ClientSecretCredential
-        from azure.mgmt.costmanagement import CostManagementClient
-
-        credential = ClientSecretCredential(
-            tenant_id=tenant_id,
-            client_id=client_id,
-            client_secret=client_secret
-        )
-        cost_client = CostManagementClient(credential)
-
-        end = datetime.today()
-        start = end - timedelta(days=90)
-
-        scope = f"/subscriptions/{subscription_id}"
-        result = cost_client.query.usage(
-            scope,
-            {
-                "type": "ActualCost",
-                "timeframe": "Custom",
-                "timePeriod": {
-                    "from": start.strftime('%Y-%m-%dT00:00:00Z'),
-                    "to": end.strftime('%Y-%m-%dT00:00:00Z')
-                },
-                "dataset": {
-                    "granularity": "Daily",
-                    "aggregation": {"totalCost": {"name": "Cost", "function": "Sum"}},
-                    "grouping": [{"type": "Dimension", "name": "ServiceName"}]
-                }
-            }
-        )
-
-        rows = []
-        for row in result.rows:
-            rows.append({'cost': row[0], 'date': row[1], 'department': row[2]})
-        df = pd.DataFrame(rows)
-        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
-        return df.sort_values('date').reset_index(drop=True)
-
-    except ImportError:
-        raise ValueError("azure-mgmt-costmanagement not installed. Run: pip install azure-mgmt-costmanagement azure-identity")
-    except Exception as e:
-        raise ValueError(f"Azure connection failed: {e}")
-
 
 # ─────────────────────────────────────────
 # MAIN LOADER (called by app.py)
 # ─────────────────────────────────────────
 def load_data(source, uploaded_file=None,
-              aws_access_key=None, aws_secret_key=None, aws_region='us-east-1', aws_days=90,
-              gcp_project=None, gcp_dataset=None, gcp_table=None, gcp_sa_json=None,
-              azure_sub=None, azure_tenant=None, azure_client=None, azure_secret=None):
+              aws_access_key=None, aws_secret_key=None, aws_region='us-east-1', aws_days=90):
 
     if source == 'nasa':
         return load_nasa_data()
@@ -262,20 +172,6 @@ def load_data(source, uploaded_file=None,
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
             aws_region=aws_region
-        )
-    elif source == 'gcp':
-        return fetch_gcp_data(
-            project_id=gcp_project,
-            dataset=gcp_dataset,
-            table=gcp_table,
-            service_account_json=gcp_sa_json
-        )
-    elif source == 'azure':
-        return fetch_azure_data(
-            subscription_id=azure_sub,
-            tenant_id=azure_tenant,
-            client_id=azure_client,
-            client_secret=azure_secret
         )
     else:
         raise ValueError(f"Unknown source: {source}")

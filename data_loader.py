@@ -1,6 +1,7 @@
 import pandas as pd
 import boto3
 import os
+import re
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -39,12 +40,35 @@ def load_uploaded_file(uploaded_file):
 
     df.columns = [c.strip().lower() for c in df.columns]
 
+    def canonicalize(name):
+        return re.sub(r'[^a-z0-9]+', '', str(name).strip().lower())
+
+    canonical_columns = {col: canonicalize(col) for col in df.columns}
+
+    def find_column(candidates, contains_only=False, exclude_terms=None):
+        candidate_keys = [canonicalize(candidate) for candidate in candidates]
+        exclude_keys = [canonicalize(term) for term in (exclude_terms or [])]
+
+        for col, key in canonical_columns.items():
+            if any(exclude_key and exclude_key in key for exclude_key in exclude_keys):
+                continue
+            if key in candidate_keys:
+                return col
+
+        if not contains_only:
+            for col, key in canonical_columns.items():
+                if any(exclude_key and exclude_key in key for exclude_key in exclude_keys):
+                    continue
+                if any(candidate_key and candidate_key in key for candidate_key in candidate_keys):
+                    return col
+
+        return None
+
     # --- Find date column ---
-    date_col = None
-    for candidate in ['date', 'time', 'timestamp', 'day', 'period', 'datetime']:
-        if candidate in df.columns:
-            date_col = candidate
-            break
+    date_col = find_column([
+        'date', 'time', 'timestamp', 'day', 'period', 'datetime',
+        'billing period', 'start date', 'usage date', 'invoice date'
+    ])
     if date_col is None:
         raise ValueError(
             "No date column found. Your CSV must have a column named: "
@@ -55,29 +79,52 @@ def load_uploaded_file(uploaded_file):
     df = df.dropna(subset=['date'])
 
     # --- Find cost column ---
-    cost_col = None
-    for candidate in ['cost', 'amount', 'spend', 'spending', 'charge', 'total', 'unblendedcost']:
-        if candidate in df.columns:
-            cost_col = candidate
-            break
+    cost_col = find_column([
+        'cost', 'amount', 'spend', 'spending', 'charge', 'total',
+        'unblended cost', 'blended cost', 'amortized cost', 'net cost',
+        'list cost', 'pretax cost', 'usd', 'price', 'fee'
+    ], exclude_terms=['prediction', 'forecast', 'estimate'])
+
+    if cost_col is None:
+        cost_col = find_column([
+            'cost', 'amount', 'spend', 'spending', 'charge', 'total',
+            'unblended cost', 'blended cost', 'amortized cost', 'net cost',
+            'list cost', 'pretax cost', 'usd', 'price', 'fee'
+        ])
 
     if cost_col is None:
         # If no cost col, check for count (like NASA) and derive cost
-        if 'count' in df.columns:
-            df['cost'] = pd.to_numeric(df['count'], errors='coerce').fillna(0) * 0.000001
+        count_col = find_column(['count', 'requests', 'usage', 'quantity', 'units'])
+        if count_col is not None:
+            df['count'] = pd.to_numeric(df[count_col], errors='coerce').fillna(0)
+            df['cost'] = df['count'] * 0.000001
         else:
-            raise ValueError(
-                "No cost column found. Your CSV must have a column named: "
-                "cost, amount, spend, spending, charge, total, or count."
-            )
+            numeric_candidates = []
+            for col in df.columns:
+                if col == 'date':
+                    continue
+                numeric_series = pd.to_numeric(df[col], errors='coerce')
+                non_null_ratio = numeric_series.notna().mean()
+                if non_null_ratio >= 0.6:
+                    numeric_candidates.append((col, numeric_series))
+
+            if len(numeric_candidates) == 1:
+                inferred_col, numeric_series = numeric_candidates[0]
+                df['cost'] = numeric_series.fillna(0)
+            else:
+                raise ValueError(
+                    "No cost column found. Rename your spend column to something like "
+                    "cost/amount/spend, or upload a file with one clear numeric cost column."
+                )
     else:
         df['cost'] = pd.to_numeric(df[cost_col], errors='coerce').fillna(0)
-        if cost_col != 'cost':
-            df = df.rename(columns={cost_col: 'cost'})
 
     # --- Department / Load classification ---
     if 'department' not in df.columns:
-        if 'count' in df.columns:
+        count_col = 'count' if 'count' in df.columns else find_column(['count', 'requests', 'usage', 'quantity', 'units'])
+        if count_col is not None:
+            if count_col != 'count':
+                df['count'] = pd.to_numeric(df[count_col], errors='coerce').fillna(0)
             def classify_load(count):
                 if count > 100:
                     return 'High Load'
@@ -90,6 +137,10 @@ def load_uploaded_file(uploaded_file):
             df['department'] = df['service']
         elif 'region' in df.columns:
             df['department'] = df['region']
+        elif 'availabilityzone' in df.columns:
+            df['department'] = df['availabilityzone']
+        elif 'productdescription' in df.columns:
+            df['department'] = df['productdescription']
         else:
             # Classify by cost quartile
             q33 = df['cost'].quantile(0.33)

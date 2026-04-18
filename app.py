@@ -13,17 +13,50 @@ st.set_page_config(page_title="AI Cloud Cost Optimizer", layout="wide")
 
 st.markdown("""
 <style>
-    /* Spacing between headers */
-    h1 { margin-bottom: 2rem !important; }
-    h2, h3 { margin-top: 3.5rem !important; margin-bottom: 1.5rem !important; }
+    /* Gradient Title */
+    h1 {
+        padding-bottom: 2rem !important;
+        background: -webkit-linear-gradient(45deg, #0ea5e9, #6366f1);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800 !important;
+    }
+
+    /* Section Header Partitions */
+    h3 {
+        margin-top: 3.5rem !important;
+        margin-bottom: 2rem !important;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+        color: #0ea5e9;
+        font-weight: 600 !important;
+    }
     
-    /* Spacing around the horizontal dividers */
-    hr { margin-top: 4rem !important; margin-bottom: 4rem !important; }
+    /* Subtle Dividers */
+    hr {
+        margin-top: 3rem !important;
+        margin-bottom: 3rem !important;
+        border-color: rgba(128, 128, 128, 0.2) !important;
+    }
     
-    /* Give metrics some breathing room */
+    /* Floating Metric Cards */
     div[data-testid="stMetric"] {
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
+        background-color: rgba(128, 128, 128, 0.05);
+        border: 1px solid rgba(128, 128, 128, 0.1);
+        border-radius: 12px;
+        padding: 20px 24px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease-in-out;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Make metric values pop */
+    div[data-testid="stMetricValue"] {
+        font-weight: 700 !important;
+        color: #0ea5e9 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -33,7 +66,12 @@ st.markdown("""
 # ─────────────────────────────────────────
 st.sidebar.title("Dashboard Controls")
 
-source = st.sidebar.radio(
+source_container = st.sidebar.container()
+filter_container = st.sidebar.container()
+creds_container = st.sidebar.container()
+
+
+source = source_container.radio(
     "Data Source",
     ['nasa', 'upload', 'aws'],
     format_func=lambda x: {
@@ -51,20 +89,21 @@ aws_key = aws_secret = aws_region = None
 aws_days = 90
 
 if source == 'upload':
-    st.sidebar.markdown("### Upload Your Data")
-    uploaded_file = st.sidebar.file_uploader(
+    creds_container.markdown("### Upload Your Data")
+    uploaded_file = creds_container.file_uploader(
         "Upload CSV file",
         type=['csv'],
-        help="Must have a date column and a cost/amount/count column"
+        help="Needs a date column and either a spend/cost column or a usage/count column"
     )
-    st.sidebar.caption(
-        "Accepted columns: date/time/timestamp + cost/amount/spend/count. "
-        "Department auto-detected from service/region columns."
+    creds_container.caption(
+        "Accepted date columns include date/time/timestamp. "
+        "Spend columns like Total Cost, cost_usd, Unblended Cost, amount, spend, charge, price, fee, and count-like usage columns are auto-detected. "
+        "Department is auto-detected from service/region columns."
     )
 
 elif source == 'aws':
-    st.sidebar.markdown("### AWS Credentials")
-    with st.sidebar.expander("Enter AWS Credentials", expanded=True):
+    creds_container.markdown("### AWS Credentials")
+    with creds_container.expander("Enter AWS Credentials", expanded=True):
         aws_key = st.text_input("Access Key ID", type="password",
                                 help="Leave blank to use IAM role / env vars")
         aws_secret = st.text_input("Secret Access Key", type="password")
@@ -73,7 +112,7 @@ elif source == 'aws':
             'ap-southeast-1', 'ap-northeast-1', 'ca-central-1'
         ])
         aws_days = st.slider("Days of history", min_value=7, max_value=365, value=90)
-    st.sidebar.caption("Cost Explorer must be enabled in your AWS account.")
+    creds_container.caption("Cost Explorer must be enabled in your AWS account.")
 
 
 
@@ -108,14 +147,19 @@ df = detect_anomalies(df)
 # ─────────────────────────────────────────
 # SIDEBAR — FILTERS
 # ─────────────────────────────────────────
-sensitivity = st.sidebar.slider(
+sensitivity = filter_container.slider(
     "Anomaly Sensitivity", min_value=1.0, max_value=3.0, value=1.5, step=0.1
 )
 
-selected_dept = st.sidebar.selectbox(
+selected_dept = filter_container.selectbox(
     "Filter by Department / Load",
     ["ALL"] + list(df['department'].unique())
 )
+
+# Invisible spacer to ensure dropdowns always open downwards
+st.sidebar.markdown("<div style='height: 60vh; visibility: hidden;'>Spacer</div>", unsafe_allow_html=True)
+
+
 if selected_dept != "ALL":
     df = df[df['department'] == selected_dept]
 
@@ -135,7 +179,7 @@ st.caption(f"Data source: **{source_labels[source]}** | {len(df):,} records load
 # ─────────────────────────────────────────
 # SECTION 1: AUTOSCALING + LOAD BALANCING
 # ─────────────────────────────────────────
-st.subheader("Autoscaling & Load Balancing")
+st.markdown("### Autoscaling & Load Balancing")
 
 def get_scaling_metrics(df):
     """Compute scaling signals from cost and traffic data."""
@@ -258,58 +302,63 @@ with st.expander("Autoscaling Decision Log"):
     | **Final Decision** | **{recommendation}** | {'🔴' if recommendation == 'Scale Up' else '🟡' if recommendation == 'Scale Down' else '🟢'} |
     """)
 
-st.divider()
+st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 2: COST FORECAST (Moving Average)
 # ─────────────────────────────────────────
-st.subheader("Cost Forecast")
+with st.container(border=True):
+    st.markdown("### Cost Forecast")
 
-window = min(7, len(df) // 2) if len(df) < 14 else 7
-df['forecast'] = df['cost'].rolling(window=window).mean()
+    window = min(7, len(df) // 2) if len(df) < 14 else 7
+    df['forecast'] = df['cost'].rolling(window=window).mean()
 
-fig3 = px.line(
-    df.tail(1000), x='date', y=['cost', 'forecast'],
-    title=f'Actual Cost vs {window}-Period Moving Average Forecast'
-)
-st.plotly_chart(fig3, use_container_width=True)
+    next_predicted = df['forecast'].dropna().iloc[-1]
 
-next_predicted = df['forecast'].dropna().iloc[-1]
-st.metric("Next Period Predicted Cost (Moving Avg)", f"${round(next_predicted, 6)}")
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        fig3 = px.line(
+            df.tail(1000), x='date', y=['cost', 'forecast'],
+            title=f'Actual Cost vs {window}-Period Moving Average Forecast'
+        )
+        st.plotly_chart(fig3, use_container_width=True)
 
-st.divider()
+    with col2:
+        st.metric("Next Period Predicted Cost (Moving Avg)", f"${next_predicted:.6f}")
+        
+    st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 3: LSTM FORECAST
 # ─────────────────────────────────────────
-st.subheader("LSTM Neural Network Forecast")
-
 @st.cache_data(show_spinner=False)
 def get_cached_lstm_forecast(data, n_steps, epochs):
     return forecast_lstm(data, n_steps=n_steps, epochs=epochs)
 
-data_size = len(df)
-if data_size < 5:
-    st.warning("Not enough data for LSTM (minimum 5 records). Add more data or use NASA dataset.")
-else:
-    with st.spinner(f"Training LSTM on {data_size} records... (may take 1-2 mins for large datasets)"):
-        try:
-            lstm_prediction = get_cached_lstm_forecast(df, n_steps=60, epochs=5)
-            st.metric("LSTM Predicted Next Cost", f"${lstm_prediction:.6f}")
-            st.caption(
-                f"Trained on {data_size} records. "
-                + ("Note: LSTM auto-adjusted sequence length due to limited data rows." if data_size < 60 else "")
-            )
-        except Exception as e:
-            st.error(f"LSTM failed: {e}")
+with st.container(border=True):
+    st.markdown("### LSTM Neural Network Forecast")
 
-st.divider()
+    data_size = len(df)
+    if data_size < 5:
+        st.warning("Not enough data for LSTM (minimum 5 records). Add more data or use NASA dataset.")
+    else:
+        with st.spinner(f"Training LSTM on {data_size} records... (may take 1-2 mins for large datasets)"):
+            try:
+                lstm_prediction = get_cached_lstm_forecast(df, n_steps=60, epochs=5)
+                st.metric("LSTM Predicted Next Cost", f"${lstm_prediction:.6f}")
+                st.caption(
+                    f"Trained on {data_size} records. "
+                    + ("Note: LSTM auto-adjusted sequence length due to limited data rows." if data_size < 60 else "")
+                )
+            except Exception as e:
+                st.error(f"LSTM failed: {e}")
+
+    st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 4: WASTE DETECTOR
 # ─────────────────────────────────────────
-st.subheader("Waste Detector")
-
 def detect_waste(df):
     if 'count' not in df.columns:
         # For cloud data without traffic: flag low-cost high-variance periods
@@ -321,93 +370,111 @@ def detect_waste(df):
     return waste
 
 waste = detect_waste(df)
-st.write(f"Wasteful periods detected: **{len(waste)}**")
-if len(waste) > 0:
-    st.warning(f"{len(waste)} periods show unusually low utilization / spend")
-    st.dataframe(waste.head(20))
-else:
-    st.success("No waste detected")
 
-st.divider()
+with st.container(border=True):
+    st.markdown("### Waste Detector")
+    st.write(f"Wasteful periods detected: **{len(waste)}**")
+    if len(waste) > 0:
+        st.warning(f"{len(waste)} periods show unusually low utilization / spend")
+        st.dataframe(waste.head(20))
+    else:
+        st.success("No waste detected")
+
+    st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 5: ANOMALY DETECTION
 # ─────────────────────────────────────────
-st.subheader("Cost Trend with Anomalies")
+with st.container(border=True):
+    st.markdown("### Cost Trend with Anomalies")
 
-fig = px.line(
-    df.tail(1000), x='date', y='cost',
-    title='Cost Over Time with Anomalies Highlighted'
-)
-anomaly_points = df[df['anomaly'] == -1].tail(1000)
-fig.add_scatter(
-    x=anomaly_points['date'],
-    y=anomaly_points['cost'],
-    mode='markers',
-    marker=dict(color='red', size=6),
-    name='Anomaly'
-)
-st.plotly_chart(fig, use_container_width=True)
+    fig = px.line(
+        df.tail(1000), x='date', y='cost',
+        title='Cost Over Time with Anomalies Highlighted'
+    )
+    anomaly_points = df[df['anomaly'] == -1].tail(1000)
+    fig.add_scatter(
+        x=anomaly_points['date'],
+        y=anomaly_points['cost'],
+        mode='markers',
+        marker=dict(color='red', size=6),
+        name='Anomaly'
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-anomalies = df[df['anomaly'] == -1]
-normal = df[df['anomaly'] == 1]
+    anomalies = df[df['anomaly'] == -1]
+    normal = df[df['anomaly'] == 1]
 
-st.write(f"Total records analyzed: **{len(df)}**")
-st.write(f"Anomalies Detected: **{len(anomalies)}** ({round(len(anomalies) / len(df) * 100, 1)}%)")
+    st.write(f"Total records analyzed: **{len(df)}**")
+    st.write(f"Anomalies Detected: **{len(anomalies)}** ({round(len(anomalies) / len(df) * 100, 1)}%)")
 
-if len(anomalies) > 0:
-    st.error(f"{len(anomalies)} anomalies detected by Isolation Forest!")
-    st.dataframe(anomalies.head(20))
-else:
-    st.success("No anomalies detected")
+    if len(anomalies) > 0:
+        st.error(f"{len(anomalies)} anomalies detected by Isolation Forest!")
+        st.dataframe(anomalies.head(20))
+    else:
+        st.success("No anomalies detected")
 
-st.download_button(
-    label="Download Anomaly Report",
-    data=anomalies.to_csv(index=False),
-    file_name="anomaly_report.csv",
-    mime="text/csv"
-)
+    st.download_button(
+        label="Download Anomaly Report",
+        data=anomalies.to_csv(index=False),
+        file_name="anomaly_report.csv",
+        mime="text/csv"
+    )
 
-st.divider()
+    st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 6: EXECUTIVE SUMMARY
 # ─────────────────────────────────────────
-st.subheader("Executive Summary")
+with st.container(border=True):
+    st.markdown("### Executive Summary")
 
-col1, col2, col3, col4 = st.columns(4)
-anomaly_count = len(anomalies)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Spend", f"${df['cost'].sum():,.2f}")
+    col2.metric("Average Daily Cost", f"${df['cost'].mean():,.4f}")
+    col3.metric("Highest Cost", f"${df['cost'].max():,.4f}")
+    col4.metric("Next Period (MA)", f"${df['forecast'].dropna().iloc[-1]:,.4f}")
 
-col1.metric("Total Records", f"{len(df):,}")
-col2.metric("Anomalies Found", f"{anomaly_count:,}")
-col3.metric("Highest Cost", f"${round(df['cost'].max(), 6)}")
-col4.metric("Next Period Cost (MA)", f"${round(df['forecast'].dropna().iloc[-1], 6)}")
+    st.write("")
+    
+    col5, col6, col7, col8 = st.columns(4)
+    col5.metric("Total Records Analyzed", f"{len(df):,}")
+    
+    anomaly_count = len(anomalies)
+    col6.metric("Anomalies Found", f"{anomaly_count:,}", 
+                delta=f"{anomaly_count} detected" if anomaly_count else None, 
+                delta_color="inverse")
+    
+    waste_count = len(waste)
+    col7.metric("Wasteful Periods", f"{waste_count:,}", 
+                delta=f"{waste_count} inactive" if waste_count else None, 
+                delta_color="inverse")
+                
+    health_status = "Optimal" if anomaly_count <= 2 and waste_count <= 5 else "Needs Review"
+    if anomaly_count == 0 and waste_count == 0:
+        health_status = "Perfect"
+    col8.metric("System Health", health_status)
 
-st.divider()
-
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Spend", f"${round(df['cost'].sum(), 4)}")
-col2.metric("Average Daily Cost", f"${round(df['cost'].mean(), 6)}")
-col3.metric("Waste Periods", f"{len(waste):,}")
-
-st.divider()
+    st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 7: COST BY DEPARTMENT
 # ─────────────────────────────────────────
-st.subheader("Cost by Department / Service")
+with st.container(border=True):
+    st.markdown("### Cost by Department / Service")
 
-fig2 = px.bar(
-    df.groupby('department')['cost'].sum().reset_index(),
-    x='department', y='cost', color='department',
-    title='Total Spend per Department / Service'
-)
-st.plotly_chart(fig2, use_container_width=True)
+    fig2 = px.bar(
+        df.groupby('department')['cost'].sum().reset_index(),
+        x='department', y='cost', color='department',
+        title='Total Spend per Department / Service'
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 
-st.divider()
+    st.write("")
 
 # ─────────────────────────────────────────
 # SECTION 8: RAW DATA
 # ─────────────────────────────────────────
-st.subheader("Raw Data")
-st.dataframe(df)
+with st.container(border=True):
+    st.markdown("### Raw Data")
+    st.dataframe(df)

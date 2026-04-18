@@ -5,4 +5,4 @@ scikit-learn
 boto3
 python-dotenv
 python-dotenv
-tensorflow
+tensorflow-cpu

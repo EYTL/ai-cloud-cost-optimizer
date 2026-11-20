@@ -1,7 +1,8 @@
 
-name: AI Cloud Cost Optimizer - First Workflow
+name: AI Cloud Cost Optimizer
 
-on: [push, workflow_dispatch]
+on:
+  workflow_dispatch:
 
 jobs:
   hello:

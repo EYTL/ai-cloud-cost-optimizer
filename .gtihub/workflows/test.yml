@@ -1,12 +1,16 @@
+
 name: Workflow Registration Test
 
-"on":
+on:
   push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Confirm workflow execution
         run: echo "GitHub Actions is working!"

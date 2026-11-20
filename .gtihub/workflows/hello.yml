@@ -1,18 +1,19 @@
-name: AI Cost optimization First Work Flow
 
-on: 
-  workflow_dispatch:
-  
+name: AI Cloud Cost Optimizer - First Workflow
+
+on: [workflow_dispatch]
+
 jobs:
- hello:
-     runs-on:  unbuntu-latest
+  hello:
+    runs-on: ubuntu-latest
 
-     steps:  
-       - name: Welcome message
-         run: echo "Hello my AI Cloud Cost Optimiztion platform is running on Github Action."
+    steps:
+      - name: Welcome message
+        run: echo "Hello from my AI Cloud Cost Optimization Platform!"
 
-       - name: Check Python version
-         run: python --version
+      - name: Check Python version
+        run: python --version
 
-       - name: Check current directory
-         run: pwd
+      - name: Check current directory
+        run: pwd
+

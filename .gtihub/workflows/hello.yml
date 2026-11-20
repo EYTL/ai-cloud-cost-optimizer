@@ -1,7 +1,7 @@
 
 name: AI Cloud Cost Optimizer - First Workflow
 
-on: [workflow_dispatch]
+on: [push, workflow_dispatch]
 
 jobs:
   hello:
@@ -16,4 +16,3 @@ jobs:
 
       - name: Check current directory
         run: pwd
-

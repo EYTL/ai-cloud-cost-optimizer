@@ -1,4 +1,3 @@
-
 name: Workflow Registration Test
 
 "on":
@@ -8,13 +7,6 @@ name: Workflow Registration Test
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Confirm workflow execution
         run: echo "GitHub Actions is working!"
-
-      - name: Check Python version
-        run: python --version
-
-      - name: Check current directory
-        run: pwd

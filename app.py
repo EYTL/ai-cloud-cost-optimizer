@@ -259,7 +259,7 @@ recommendation = scaling_recommendation(metrics)
 lb_distribution = load_balancer_status(df)
 
 # Display Metrics and Recommendation side-by-side
-m1, m2, m3, m4 = st.columns([1, 1, 1, 2])
+m1, m2, m3, m4 = st.columns([1.4, 1.4, 1.1, 1.8])
 
 with m1:
     st.metric("Avg Cost (7 Days)", fmt_usd(metrics['avg_cost']))

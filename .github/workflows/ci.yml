@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # Only what the tests need: the heavy TensorFlow install is not required.
+      - name: Install dependencies
+        run: pip install pandas boto3 python-dotenv scikit-learn pytest
+
+      - name: Check that every module compiles
+        run: python -m py_compile app.py data_loader.py formatting.py anomaly_model.py
+
+      - name: Run tests
+        run: pytest -q

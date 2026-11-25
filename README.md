@@ -1,5 +1,7 @@
 # AI Cloud Cost Optimizer
 
+[![CI](https://github.com/EYTL/ai-cloud-cost-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/EYTL/ai-cloud-cost-optimizer/actions/workflows/ci.yml)
+
 AI Cloud Cost Optimizer is a Streamlit-based analytics dashboard for monitoring cloud spend, identifying abnormal cost behavior, estimating future spending, and surfacing potential waste. The project combines rule-based operational insights with machine learning techniques so teams can review cloud usage patterns from a single interface.
 
 The application supports three data sources:

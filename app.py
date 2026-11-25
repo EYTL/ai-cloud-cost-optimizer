@@ -4,7 +4,15 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from anomaly_model import detect_anomalies
-from data_loader import load_data
+from data_loader import load_data, SIMULATED_PRICE_PER_REQUEST
+
+
+def fmt_usd(value, signed=False):
+    """Format a dollar amount: 2 decimals normally, 4 for tiny real-world values."""
+    prefix = "-" if value < 0 else ("+" if signed else "")
+    amount = abs(float(value))
+    digits = 4 if 0 < amount < 0.01 else 2
+    return f"{prefix}${amount:,.{digits}f}"
 
 # ─────────────────────────────────────────
 # PAGE CONFIG
@@ -175,6 +183,11 @@ source_labels = {
     'aws': f'AWS Cost Explorer ({aws_days} days)'
 }
 st.caption(f"Data source: **{source_labels[source]}** | {len(df):,} records loaded")
+if source == 'nasa':
+    st.caption(
+        "The NASA logs contain request counts only, so cost is simulated at "
+        f"{fmt_usd(SIMULATED_PRICE_PER_REQUEST)} per request for demonstration."
+    )
 
 # ─────────────────────────────────────────
 # SECTION 1: AUTOSCALING + LOAD BALANCING
@@ -249,11 +262,11 @@ lb_distribution = load_balancer_status(df)
 m1, m2, m3, m4 = st.columns([1, 1, 1, 2])
 
 with m1:
-    st.metric("Avg Cost (7 Days)", f"${metrics['avg_cost']:.4f}")
+    st.metric("Avg Cost (7 Days)", fmt_usd(metrics['avg_cost']))
 
 with m2:
     trend_symbol = "↑" if metrics['cost_trend'] > 0 else "↓"
-    st.metric("Cost Trend", f"{trend_symbol} {metrics['cost_trend']:+.4f}")
+    st.metric("Cost Trend", f"{trend_symbol} {fmt_usd(abs(metrics['cost_trend']))}")
 
 with m3:
     if metrics['has_traffic']:
@@ -296,8 +309,8 @@ with st.expander("Autoscaling Decision Log"):
     st.markdown(f"""
     | Signal | Value | Status |
     |--------|-------|--------|
-    | Avg Cost (7-day) | ${metrics['avg_cost']:.4f} | {'High' if metrics['avg_cost'] > 100 else 'Normal'} |
-    | Cost Trend | {metrics['cost_trend']:+.4f} | {'Rising' if metrics['cost_trend'] > 0 else 'Falling'} |
+    | Avg Cost (7-day) | {fmt_usd(metrics['avg_cost'])} | {'High' if metrics['avg_cost'] > 100 else 'Normal'} |
+    | Cost Trend | {fmt_usd(metrics['cost_trend'], signed=True)} |{'Rising' if metrics['cost_trend'] > 0 else 'Falling'} |
     | Traffic Load | {'N/A' if not metrics['has_traffic'] else f"{metrics['avg_traffic']:.0f}"} | {'N/A' if not metrics['has_traffic'] else ('High' if metrics['avg_traffic'] > 100 else 'Normal')} |
     | **Final Decision** | **{recommendation}** | {'🔴' if recommendation == 'Scale Up' else '🟡' if recommendation == 'Scale Down' else '🟢'} |
     """)
@@ -325,7 +338,7 @@ with st.container(border=True):
         st.plotly_chart(fig3, use_container_width=True)
 
     with col2:
-        st.metric("Next Period Predicted Cost (Moving Avg)", f"${next_predicted:.6f}")
+        st.metric("Next Period Predicted Cost (Moving Avg)", fmt_usd(next_predicted))
         
     st.write("")
 
@@ -346,7 +359,7 @@ with st.container(border=True):
         with st.spinner(f"Training LSTM on {data_size} records... (may take 1-2 mins for large datasets)"):
             try:
                 lstm_prediction = get_cached_lstm_forecast(df, n_steps=60, epochs=5)
-                st.metric("LSTM Predicted Next Cost", f"${lstm_prediction:.6f}")
+                st.metric("LSTM Predicted Next Cost", fmt_usd(lstm_prediction))
                 st.caption(
                     f"Trained on {data_size} records. "
                     + ("Note: LSTM auto-adjusted sequence length due to limited data rows." if data_size < 60 else "")
@@ -430,10 +443,10 @@ with st.container(border=True):
     st.markdown("### Executive Summary")
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Spend", f"${df['cost'].sum():,.2f}")
-    col2.metric("Average Daily Cost", f"${df['cost'].mean():,.4f}")
-    col3.metric("Highest Cost", f"${df['cost'].max():,.4f}")
-    col4.metric("Next Period (MA)", f"${df['forecast'].dropna().iloc[-1]:,.4f}")
+    col1.metric("Total Spend", fmt_usd(df['cost'].sum()))
+    col2.metric("Average Cost per Period", fmt_usd(df['cost'].mean()))
+    col3.metric("Highest Cost", fmt_usd(df['cost'].max()))
+    col4.metric("Next Period (MA)", fmt_usd(df['forecast'].dropna().iloc[-1]))
 
     st.write("")
     

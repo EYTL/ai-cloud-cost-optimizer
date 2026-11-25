@@ -7,13 +7,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# The NASA web-server logs contain request counts but no billing data, so cost
+# is simulated as requests x an illustrative rate. $0.001 per request keeps
+# the totals realistic (a few thousand dollars over the whole dataset, a few
+# cents per minute) instead of rounding to $0.0000.
+SIMULATED_PRICE_PER_REQUEST = 0.001
+
 # ─────────────────────────────────────────
 # NASA DATA
 # ─────────────────────────────────────────
 def load_nasa_data():
     df = pd.read_csv('NASA Dataset for LSTM.csv')
     df = df.rename(columns={'minute': 'date'})
-    df['cost'] = df['count'] * 0.000001
+    df['cost'] = df['count'] * SIMULATED_PRICE_PER_REQUEST
 
     def classify_load(count):
         if count > 100:
@@ -97,7 +103,7 @@ def load_uploaded_file(uploaded_file):
         count_col = find_column(['count', 'requests', 'usage', 'quantity', 'units'])
         if count_col is not None:
             df['count'] = pd.to_numeric(df[count_col], errors='coerce').fillna(0)
-            df['cost'] = df['count'] * 0.000001
+            df['cost'] = df['count'] * SIMULATED_PRICE_PER_REQUEST
         else:
             numeric_candidates = []
             for col in df.columns:
